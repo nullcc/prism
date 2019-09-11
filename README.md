@@ -1,6 +1,6 @@
 # prism
 
-A simple tools to make dependency static analysis for TypeScript.
+A simple tools to make static analysis of dependencies for TypeScript.
 
 ## Test
 
