@@ -1,63 +1,69 @@
 import * as ts from 'typescript';
-import { BaseNodeResolver } from './base';
-import { globalSymbols } from '../tracer';
-import { IResolvedModule, ISourceFileDescriptor } from '../interface';
+import { BaseNodeResolver, NodeResolverBuilder } from './base';
+import { IResolvedModule } from '../model/typescript';
+import { ISymbol } from '../model/prism';
 
 export class SourceFileNodeResolver extends BaseNodeResolver {
-  private filePath: string;
-  private resolvedModules: Map<string, IResolvedModule>;
+  private sourceFile: string;
 
-  constructor(node: any) {
-    super(node);
-    this.filePath = this._getFilePath();
-    this.resolvedModules = this._getResolvedModules();
+  constructor(nodeResolverBuilder: NodeResolverBuilder) {
+    super(nodeResolverBuilder);
+    this.sourceFile = this._getFileName();
   }
 
-  public resolve(): ISourceFileDescriptor {
-    this._init();
-    this._extractSymbolFromSourceFile();
-    return this._createSourceFileDescriptor();
+  public resolve(): void {
+    /**
+     * Three import situations in resolvedModules:
+     * 1. (Ignored) Built-in module import, e.g. import * as fs from 'fs';
+     *    'fs' => undefined,
+     * 2. (Ignored) External library import, e.g. import * as _ from 'lodash';
+     *    'lodash' => {
+     *      resolvedFileName: '${rootDir}/node_modules/@types/lodash/ts3.1/index.d.ts',
+     *      originalPath: undefined,
+     *      extension: '.d.ts',
+     *      isExternalLibraryImport: true,
+     *      packageId: [Object]
+     *    },
+     * 3. (Checked) Module in project import, e.g. import { B } from './core/b';
+     *    './core/b' => {
+     *      resolvedFileName: '${rootDir}/core/b.ts',
+     *      originalPath: undefined,
+     *      extension: '.ts',
+     *      isExternalLibraryImport: false,
+     *      packageId: undefined
+     *    }
+     **/
+    const imports = new Set<string>();
+    const resolvedModules: Map<string, IResolvedModule> = this.node['resolvedModules'];
+    if (resolvedModules) {
+      resolvedModules.forEach((resolvedModule: IResolvedModule | undefined) => {
+        if (resolvedModule && !resolvedModule.isExternalLibraryImport) {
+          imports.add(resolvedModule.resolvedFileName);
+        }
+      });
+    }
+    const symbols = this._getSymbols();
+    this.network.addFile(this.sourceFile, imports, symbols);
   }
 
-  private _getFilePath(): string {
+  private _getFileName(): string {
     return this.node['originalFileName'];
   }
 
-  private _getResolvedModules(): Map<string, IResolvedModule> {
-    return this.node['resolvedModules'] || new Map<string, IResolvedModule>();
-  }
-
-  private _init(): void {
-    if (!globalSymbols.has(this.filePath)) {
-      globalSymbols.set(this.filePath, new Set<string>());
-    }
-  }
-
-  private _extractSymbolFromSourceFile(): void {
-    const fileLocals = globalSymbols.get(this.filePath);
+  private _getSymbols(): Set<ISymbol> {
+    const symbols = new Set<ISymbol>();
     this.node.locals.forEach((local: any) => {
-      if (!this._isLocalSymbol(local)) {
-        return;
-      }
-      fileLocals.add(this._getSymbolName(local));
+      symbols.add({
+        name: this._getSymbolName(local),
+        type: this._isLocalSymbol(local) ? 'local' : 'ref',
+      });
     });
-  }
-
-  private _createSourceFileDescriptor(): ISourceFileDescriptor {
-    const sourceFileDescriptor: ISourceFileDescriptor = {
-      path: this.filePath,
-      depPaths: new Set<string>(),
-    };
-    this.resolvedModules.forEach((resolvedModule: IResolvedModule) => {
-      if (resolvedModule && resolvedModule.resolvedFileName.indexOf('node_modules') === -1) {
-        sourceFileDescriptor.depPaths.add(resolvedModule.resolvedFileName);
-      }
-    });
-    return sourceFileDescriptor;
+    return symbols;
   }
 
   private _isLocalSymbol(symbol: any): boolean {
-    return symbol['flags'] !== ts.SymbolFlags.Alias;
+    return (symbol['flags'] !== ts.SymbolFlags.Alias)
+      || !(symbol['flags'] === ts.SymbolFlags.BlockScopedVariable && symbol['valueDeclaration']);
   }
 
   private _getSymbolName(symbol: any): string {

@@ -8,8 +8,8 @@ describe('Test prism.', () => {
     const filePath = `${__dirname}/fixtures/sample-project/core/index.ts`;
     const filePaths = getFilesInDir(projectDir);
     compile(filePaths, () => {});
-    const deps = network.findDeps(projectDir, filePath);
-    expect(deps).toEqual([
+    const imports = network.findImports(projectDir, filePath);
+    expect(imports).toEqual([
       '/core/index.ts',
       '/core/a.ts',
       '/core/b.ts',
@@ -24,8 +24,8 @@ describe('Test prism.', () => {
     const filePath = `${__dirname}/fixtures/sample-project/core/e.ts`;
     const filePaths = getFilesInDir(projectDir);
     compile(filePaths, () => {});
-    const deps = network.findDeps(projectDir, filePath);
-    expect(deps).toEqual([
+    const imports = network.findImports(projectDir, filePath);
+    expect(imports).toEqual([
       '/core/e.ts',
       '/core/d.ts',
       '/core/c.ts',
@@ -39,10 +39,12 @@ describe('Test prism.', () => {
     const filePath = `${__dirname}/fixtures/sample-project/g.ts`;
     const filePaths = getFilesInDir(projectDir);
     compile(filePaths, () => {});
-    const deps = network.findDeps(projectDir, filePath);
-    expect(deps).toEqual([
+    const imports = network.findImports(projectDir, filePath);
+    expect(imports).toEqual([
       '/g.ts',
-      '/core/a.ts'
+      '/core/b.ts',
+      '/core/a.ts',
+      '/core/c.ts',
     ]);
   });
 });

@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { ISourceFileNode, ISourceFileDescriptor } from './interface';
+import { ISourceFileNode, ISymbol } from './model/prism';
 
 export class Network {
   private _network: Map<string, ISourceFileNode>;
@@ -8,12 +8,12 @@ export class Network {
     this._network = new Map<string, ISourceFileNode>();
   }
 
-  public addFile(sourceFileDescriptor: ISourceFileDescriptor) {
-    const node = this._createSourceFileNode(sourceFileDescriptor);
-    this._network.set(node.path, node);
+  public addFile(sourceFile: string, imports: Set<string>, symbols: Set<ISymbol>) {
+    const node = this._createSourceFileNode(sourceFile, imports, symbols);
+    this._network.set(node.name, node);
   }
 
-  public findDeps(dir:string, filePath: string): string[] {
+  public findImports(dir:string, filePath: string): string[] {
     const sourceFileNode = this._network.get(filePath);
     if (!sourceFileNode) {
       throw new Error(`File not found in network: ${filePath}`);
@@ -21,34 +21,36 @@ export class Network {
     const depNodes = this._bfs(sourceFileNode);
     return _
       .chain(depNodes)
-      .map(depNode => depNode.path.replace(dir, ''))
+      .map(depNode => depNode.name.replace(dir, ''))
       .uniq()
       .value();
   }
 
-  public dump(): Map<string, ISourceFileNode> {
+  public dump() {
     return this._network;
   }
 
-  private _createSourceFileNode(sourceFileDescriptor: ISourceFileDescriptor): ISourceFileNode {
-    let node = this._network.get(sourceFileDescriptor.path);
+  private _createSourceFileNode(sourceFile: string, imports: Set<string>, symbols: Set<ISymbol>): ISourceFileNode {
+    let node: ISourceFileNode = this._network.get(sourceFile);
     if (!node) {
       node = {
-        path: sourceFileDescriptor.path,
-        deps: new Set<ISourceFileNode>(),
+        name: sourceFile,
+        imports: new Set<ISourceFileNode>(),
+        symbols,
       };
     }
-    sourceFileDescriptor.depPaths.forEach((depPath: string) => {
-      const depSourceFileNode = this._network.get(depPath);
-      if (depSourceFileNode) {
-        node.deps.add(depSourceFileNode);
+    imports.forEach((importedModule: string) => {
+      const importedSourceFileNode = this._network.get(importedModule);
+      if (importedSourceFileNode) {
+        node.imports.add(importedSourceFileNode);
       } else {
-        const depNode = {
-          path: depPath,
-          deps: new Set<ISourceFileNode>(),
+        const importedModuleNode: ISourceFileNode = {
+          name: importedModule,
+          imports: new Set<ISourceFileNode>(),
+          symbols: new Set<ISymbol>(),
         };
-        this._network.set(depPath, depNode);
-        node.deps.add(depNode);
+        this._network.set(importedModule, importedModuleNode);
+        node.imports.add(importedModuleNode);
       }
     });
     return node;
@@ -63,7 +65,7 @@ export class Network {
       if (!visited.has(node)) {
         res.push(node);
       }
-      node.deps.forEach(depNode => {
+      node.imports.forEach(depNode => {
         if (!visited.has(depNode)) {
           q.push(depNode);
         }

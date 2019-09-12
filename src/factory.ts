@@ -1,8 +1,10 @@
 import {
   BaseNodeResolver,
+  NodeResolverBuilder,
   SourceFileNodeResolver,
   RequireCallNodeResolver,
 } from './resolver';
+import { Network } from './network';
 
 export type ResolverType = 'SourceFile' | 'RequireCall';
 
@@ -12,10 +14,16 @@ RESOLVER_MAP.set('RequireCall', RequireCallNodeResolver);
 
 export class ResolverFactory {
 
-  static createResolver(type: ResolverType, node: any): BaseNodeResolver {
-    const resolverClazz = RESOLVER_MAP.get(type);
-    if (resolverClazz) {
-      return new resolverClazz(node);
+  static createResolver(type: ResolverType, node: any, network: Network): BaseNodeResolver {
+    const resolverCls = RESOLVER_MAP.get(type);
+    if (!resolverCls) {
+      throw new Error(`Resolver not found: ${type}!`);
     }
+    const builder = new NodeResolverBuilder();
+    return builder
+      .setNodeResolverCls(resolverCls)
+      .setNode(node)
+      .setNetwork(network)
+      .build();
   }
 }

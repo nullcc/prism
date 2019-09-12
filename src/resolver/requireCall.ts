@@ -1,38 +1,32 @@
 import * as ts from 'typescript';
 import * as path from 'path';
-import { BaseNodeResolver } from './base';
-import { ISourceFileDescriptor } from '../interface';
+import { BaseNodeResolver, NodeResolverBuilder } from './base';
+import { ISymbol } from '../model/prism';
 
 export class RequireCallNodeResolver extends BaseNodeResolver {
-  constructor(node: any) {
-    super(node);
+  constructor(nodeResolverBuilder: NodeResolverBuilder) {
+    super(nodeResolverBuilder);
   }
 
-  public resolve(): ISourceFileDescriptor {
+  public resolve(): void {
     const args = this._getArgs();
-    const depRequiredPath = args[0].text;
-    const sourceFileDescriptor = this._createSourceFileDescriptor();
-    if (this._isLibDep(depRequiredPath)) { // ignore lib require call
-      return sourceFileDescriptor;
+    const requiredModulePath = args[0].text;
+    if (this._isExternalLibrary(requiredModulePath)) { // ignore external library
+      return;
     }
-    const depPath = this._getDepPath(depRequiredPath);
-    sourceFileDescriptor.depPaths.add(depPath);
-    return sourceFileDescriptor;
-  }
-
-  private _createSourceFileDescriptor(): ISourceFileDescriptor {
+    const modulePath = this._getModule(requiredModulePath);
     const node = this.node as ts.Node;
-    return {
-      path: node.getSourceFile()['originalFileName'],
-      depPaths: new Set<string>(),
-    };
+    const sourceFile = node.getSourceFile()['originalFileName'];
+    const imports = new Set<string>();
+    imports.add(modulePath);
+    this.network.addFile(sourceFile, imports, new Set<ISymbol>());
   }
 
   private _getArgs() {
     return this.node.arguments;
   }
 
-  private _getDepPath(depRequiredPath: string): string {
+  private _getModule(depRequiredPath: string): string {
     const node = this.node as ts.Node;
     const dir = path.dirname(node.getSourceFile()['originalFileName']);
     let depPath = path.resolve(dir, depRequiredPath);
@@ -43,7 +37,7 @@ export class RequireCallNodeResolver extends BaseNodeResolver {
     return depPath;
   }
 
-  private _isLibDep(depRequiredPath: string): boolean {
+  private _isExternalLibrary(depRequiredPath: string): boolean {
     return !depRequiredPath.includes('.');
   }
 }

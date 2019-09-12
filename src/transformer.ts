@@ -1,5 +1,5 @@
 import * as ts from 'typescript';
-import { visitorEmitter } from './tracer';
+import { astVisitorEmitter } from './tracer';
 
 export default (program: ts.Program): ts.TransformerFactory<ts.SourceFile> => {
   return (ctx: ts.TransformationContext) => {
@@ -20,11 +20,11 @@ const visitNode = (node: ts.Node, program: ts.Program): ts.Node => {
 const emit = (node: ts.Node, program: ts.Program): void => {
   const typeChecker = program.getTypeChecker();
   if (isSourceFile(node, typeChecker)) {
-    visitorEmitter.emit('SourceFile', node);
+    astVisitorEmitter.emit('data', { type: 'SourceFile', node });
     return;
   }
   if (isRequireCallExpression(node, typeChecker)) {
-    visitorEmitter.emit('RequireCall', node);
+    astVisitorEmitter.emit('data', { type: 'RequireCall', node });
     return;
   }
 };

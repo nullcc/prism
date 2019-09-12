@@ -11,13 +11,3 @@ export interface IPackageId {
   subModuleName: string;
   version: string;
 }
-
-export interface ISourceFileDescriptor {
-  path: string;
-  depPaths: Set<string>;
-}
-
-export interface ISourceFileNode {
-  path: string;
-  deps: Set<ISourceFileNode>;
-}
